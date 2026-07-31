@@ -1,0 +1,13 @@
+Questions:
+
+# Ella's Superfund RAG questions
+# Edit freely and re-run: .venv/bin/python rag_run.py --questions_file questions_ella.txt
+
+Where is the site located? Provide the city, county, and state, if available in the document.
+What contaminants or hazardous substances are identified? List every contaminant mentioned in the document.
+What event or activity caused the contamination at this site? Describe the source or origin of the pollution as stated in the document.
+What is the earliest date mentioned that relates to the site's history or investigation? Examples: discovery, initial spill, first sampling, proposal date.
+What is the site's remedial or regulatory status according to the document? Examples include: proposed NPL, final NPL, under investigation, ROD issued, remediation ongoing, deleted, etc.
+Does the document describe any cleanup or remedial actions? If yes, summarize the specific cleanup methods (e.g., excavation, capping, pump-and-treat, ICs/ECs).
+Are any responsible parties (PRPs), companies, owners, or operators identified? List all entities named.
+Does the document reference earlier actions, investigations, or related reports? If so, briefly summarize them.

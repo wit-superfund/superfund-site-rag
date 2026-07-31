@@ -1,0 +1,39 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# DS Store
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+
+# Data
+data/*
+
+# Models
+.models/*
+
+# Environment Variables
+*.env
+
+# Themes
+themes/*
+scripts/compare_evaluations.py
+
+# Logs
+logs/*
+
+# AGENTS.md
+AGENTS.md
+
+# Output
+output/*
