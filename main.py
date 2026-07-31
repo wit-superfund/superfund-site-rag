@@ -1,5 +1,8 @@
+import rag_run_july_30
+
+
 def main():
-    print("Hello from run-rag-07302026!")
+    rag_run_july_30.main()
 
 
 if __name__ == "__main__":
