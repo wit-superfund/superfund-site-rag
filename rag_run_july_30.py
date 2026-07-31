@@ -122,6 +122,10 @@ class Qwen3Embeddings(Embeddings):
             PreTrainedTokenizerBase,
             AutoTokenizer.from_pretrained(model_path, trust_remote_code=True),
         )
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+        self.tokenizer.padding_side = "right"
         self.model = (
             AutoModel.from_pretrained(
                 model_path, trust_remote_code=True, torch_dtype=torch.float16
@@ -131,13 +135,22 @@ class Qwen3Embeddings(Embeddings):
         )
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        sanitized = [t.strip() if (isinstance(t, str) and t.strip()) else "document" for t in texts]
         encoded = self.tokenizer(
-            texts, padding=True, truncation=True, max_length=512, return_tensors="pt"
+            sanitized, padding=True, truncation=True, max_length=512, return_tensors="pt"
         ).to(self.device)
+        if encoded["input_ids"].ndim < 2 or encoded["input_ids"].shape[1] == 0:
+            eos_id = self.tokenizer.eos_token_id or 0
+            encoded = {
+                "input_ids": torch.full((len(texts), 1), eos_id, dtype=torch.long, device=self.device),
+                "attention_mask": torch.ones((len(texts), 1), dtype=torch.long, device=self.device),
+            }
         with torch.no_grad():
             out = self.model(**encoded)
         # last non-padding token
-        seq_len = encoded["attention_mask"].sum(dim=1) - 1
+        seq_len = torch.clamp(encoded["attention_mask"].sum(dim=1) - 1, min=0)
         vecs = out.last_hidden_state[torch.arange(len(texts)), seq_len]
         vecs = torch.nn.functional.normalize(vecs, dim=-1)
         return vecs.cpu().float().tolist()
