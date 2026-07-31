@@ -50,7 +50,7 @@ from docling.datamodel.pipeline_options import (
     PdfPipelineOptions,
 )
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from langchain_faiss import FAISS
+from langchain_community.vectorstores.faiss import FAISS
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
