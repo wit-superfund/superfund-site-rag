@@ -89,6 +89,10 @@ LLM_MODELS = {
     "qwen2.5-14b": f"{HF_HUB}/qwen2/hub/models--Qwen--Qwen2.5-14B-Instruct/snapshots",
     # Llama3 for cross-family comparison
     "llama3-8b": f"{HF_HUB}/llama3/hub/models--meta-llama--Llama-3.1-8B-Instruct/snapshots",
+    # Gemma-4
+    "gemma4-31B": f"{HF_HUB}/gemma/hub/models--google--gemma-4-31B/snapshots",
+    "gemma4-12B-it": f"{HF_HUB}/gemma/hub/models--google--gemma-4-12B-it/snapshots",
+    "gemma4-26b-a4b": f"{HF_HUB}/gemma/hub/models--google--gemma-4-26b-a4b/snapshots",
 }
 
 DEFAULT_QUESTIONS = [
@@ -373,6 +377,7 @@ def ask(
     site_fulltext: dict[str, str],
     vectorstore,
     llm,
+    tokenizer=None,
     top_k: int = 6,
 ) -> str:
     """Answer a question using context from a single site only."""
@@ -412,18 +417,40 @@ def ask(
         return "No relevant information found in the PDFs for this site."
 
     context = "\n\n".join(d.page_content for d in retrieved)
-    prompt = (
-        f"You are a document extraction system. "
-        f"Use ONLY the provided file: {site_key}. "
-        f"If the answer is not explicitly stated in the file, output exactly: NOT PRESENT."
-        f"Output a single short answer only. No explanations, reasoning, or extra text."
-        f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+    system_content = (
+        f"You are a document extraction system. Use ONLY the provided file: {site_key}. "
+        f"If the answer is not explicitly stated in the file, output exactly: NOT PRESENT. "
+        f"Output a single short answer only. Do NOT include explanations, reasoning, or extra text."
     )
+    user_content = f"Context:\n{context}\n\nQuestion: {question}"
+
+    if tokenizer is not None and getattr(tokenizer, "chat_template", None):
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content},
+        ]
+        try:
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        except Exception:
+            prompt = f"{system_content}\n\n{user_content}\n\nAnswer:"
+    else:
+        prompt = f"{system_content}\n\n{user_content}\n\nAnswer:"
+
     raw = llm.invoke(prompt)
-    # Extract only the text after the last "Answer:" to strip prompt echo
+
+    # Strip thinking/reasoning blocks (e.g., <think>...</think>)
+    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
+
+    # Strip prompt echo prefixes if present
     if "Answer:" in raw:
         raw = raw.split("Answer:")[-1]
+    if "Assistant:" in raw:
+        raw = raw.split("Assistant:")[-1]
+
     return raw.strip()
+
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -523,11 +550,21 @@ def main():
 
             model_path = _resolve_snapshot(LLM_MODELS[model_key])
             print(f"\nLoading LLM: {model_key}")
+            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+            eos_ids = [tokenizer.eos_token_id] if tokenizer.eos_token_id is not None else []
+            nl_ids = tokenizer.encode("\n", add_special_tokens=False)
+            if nl_ids:
+                eos_ids.extend(nl_ids)
+
             pipe = pipeline(
                 "text-generation",
                 model=model_path,
-                max_new_tokens=2048,
+                tokenizer=tokenizer,
+                max_new_tokens=256,
+                repetition_penalty=1.2,
+                eos_token_id=eos_ids,
                 do_sample=False,
+                return_full_text=False,
                 device_map="auto",
                 trust_remote_code=True,
             )
@@ -537,7 +574,14 @@ def main():
             for site_key in site_fulltext:
                 for question_id, question in enumerate(questions):
                     print(f"  [{site_key}] Q: {question[:60]}")
-                    answer = ask(question, site_key, site_fulltext, vectorstore, llm)
+                    answer = ask(
+                        question,
+                        site_key,
+                        site_fulltext,
+                        vectorstore,
+                        llm,
+                        tokenizer=tokenizer,
+                    )
                     evidence_quote = ""
                     evidence_source = ""
                     # answer = ask(question, site_key, site_fulltext, vectorstore, llm)

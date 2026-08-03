@@ -21,23 +21,23 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 source "$WORK_DIR/.venv/bin/activate"
 
-MODEL="gemma3-27b"
+MODEL="gemma4-12B-it"
 DATE=$(date +%Y%m%d_%H%M)
-OUTPUT="output/rag_docling_${MODEL}_${DATE}.csv"
+OUTPUT="output_${MODEL}_${DATE}"
 SCRIPT="/work/pi_larsonj_wit_edu/superfund/project/superfund/run_rag_07302026/rag_run_july_30.py"
 
 mkdir -p output
 
 # uv sync -q
 
-echo "Starting ($SCRIPT)"
+echo "Starting: $SCRIPT"
 
 uv run $SCRIPT \
-    --pdfs_filter Wisconsin_Tomah Wisconsin_Unity "Wisconsin_Waste" Wisconsin_Wausau Wyoming \
-    --llm_models qwen3-4b \
+    --pdfs_filter Wisconsin_Tomah \
+    --llm_models $MODEL \
     --embed_model qwen3-embed-8b \
     --questions_file questions.txt \
-    --out_dir /work/pi_larsonj_wit_edu/superfund/project/superfund/run_rag_07302026/output \
+    --out_dir "/work/pi_larsonj_wit_edu/superfund/project/superfund/run_rag_07302026/$OUTPUT" \
     --use_docling \
 
 

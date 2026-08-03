@@ -1,4 +1,4 @@
-Questions:
+# Questions:
 
 # Ella's Superfund RAG questions
 # Edit freely and re-run: .venv/bin/python rag_run.py --questions_file questions_ella.txt
