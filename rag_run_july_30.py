@@ -62,34 +62,36 @@ HF_HUB = "/datasets/ai"
 
 EMBEDDING_MODELS = {
     # Qwen3 causal-LM embeddings (last-token pooling) — use --embed_model qwen3-embed-8b or qwen3-embed-0.6b
-    "qwen3-embed-8b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-Embedding-8B/snapshots/1d8ad4ca9b3dd8059ad90a75d4983776a23d44af",
+    "qwen3-embed-8b":  f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-Embedding-8B/snapshots/1d8ad4ca9b3dd8059ad90a75d4983776a23d44af",
     # lightweight option
     "qwen3-embed-0.6b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-0.6B/snapshots",
     # sentence-transformers compatible
-    "e5-mistral-7b": f"{HF_HUB}/intfloat/hub/models--intfloat--e5-mistral-7b-instruct/snapshots/07163b72af1488142a360786df853f237b1a3ca1",
+    "e5-mistral-7b":   f"{HF_HUB}/intfloat/hub/models--intfloat--e5-mistral-7b-instruct/snapshots/07163b72af1488142a360786df853f237b1a3ca1",
 }
 
 LLM_MODELS = {
     # Qwen3 base (fits on V100 16GB)
     "qwen3-0.6b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-0.6B/snapshots",
     "qwen3-1.7b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-1.7B/snapshots",
-    "qwen3-4b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-4B/snapshots",
-    "qwen3-8b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-8B/snapshots",
+    "qwen3-4b":   f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-4B/snapshots",
+    "qwen3-8b":   f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-8B/snapshots",
     # Qwen3 thinking/instruct variants
-    "qwen3-4b-thinking": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-4B-Thinking-2507/snapshots",
+    "qwen3-4b-thinking":  f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-4B-Thinking-2507/snapshots",
     # MoE: activates ~3B, fits ~10GB
     "qwen3-30b-thinking": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-30B-A3B-Thinking-2507/snapshots",
     # MoE: activates ~3B, fits ~8GB
-    "qwen3-30b-moe": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-30B-A3B/snapshots",
+    "qwen3-30b-moe":      f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-30B-A3B/snapshots",
     # Larger (needs A100/L40S 40GB+)
     "qwen3-14b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-14B/snapshots",
     "qwen3-32b": f"{HF_HUB}/qwen3/hub/models--Qwen--Qwen3-32B/snapshots",
     # Qwen2.5 for comparison
-    "qwen2.5-7b": f"{HF_HUB}/qwen2/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots",
+    "qwen2.5-7b":  f"{HF_HUB}/qwen2/hub/models--Qwen--Qwen2.5-7B-Instruct/snapshots",
     "qwen2.5-14b": f"{HF_HUB}/qwen2/hub/models--Qwen--Qwen2.5-14B-Instruct/snapshots",
     # Llama3 for cross-family comparison
-    "llama3-8b": f"{HF_HUB}/llama3/hub/models--meta-llama--Llama-3.1-8B-Instruct/snapshots",
-    # Gemma-4
+    "llama3-8b":  f"{HF_HUB}/llama3/hub/models--meta-llama--Llama-3.1-8B-Instruct/snapshots",
+    # Gemma3
+    "gemma3-27b-it": f"{HF_HUB}/gemma/hub/models--google--gemma-3-27b-it/snapshots",
+    # Gemma4
     "gemma4-31B": f"{HF_HUB}/gemma/hub/models--google--gemma-4-31B/snapshots",
     "gemma4-12B-it": f"{HF_HUB}/gemma/hub/models--google--gemma-4-12B-it/snapshots",
     "gemma4-26b-a4b": f"{HF_HUB}/gemma/hub/models--google--gemma-4-26b-a4b/snapshots",
@@ -103,10 +105,10 @@ DEFAULT_QUESTIONS = [
 ]
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MAX_PAGES_PER_PDF = 50  # was 25 — extract more pages per PDF
-MAX_CHARS_PER_PDF = 80_000  # was 40K — capture more site content
-CHUNK_SIZE_CHARS = 2400  # was 1800 — larger chunks = less fragmentation
-CHUNK_OVERLAP_CHARS = 300  # was 250
+MAX_PAGES_PER_PDF = 50           # was 25 — extract more pages per PDF
+MAX_CHARS_PER_PDF = 80_000       # was 40K — capture more site content
+CHUNK_SIZE_CHARS = 2400         # was 1800 — larger chunks = less fragmentation
+CHUNK_OVERLAP_CHARS = 300          # was 250
 KEYWORD_SNIPPET_CHARS = 260
 
 
@@ -114,48 +116,20 @@ KEYWORD_SNIPPET_CHARS = 260
 class Qwen3Embeddings(Embeddings):
     """Wraps any Qwen3 causal LM for use as an embedding model via last-token pooling."""
 
-    def __init__(
-        self,
-        model_path: str,
-        device: str = "cuda" if torch.cuda.is_available() else "cpu",
-    ):
+    def __init__(self, model_path: str, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
         self.device = device
-        from transformers import PreTrainedTokenizerBase
-
-        self.tokenizer = cast(
-            PreTrainedTokenizerBase,
-            AutoTokenizer.from_pretrained(model_path, trust_remote_code=True),
-        )
-        if self.tokenizer.pad_token_id is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-        self.tokenizer.padding_side = "right"
-        self.model = (
-            AutoModel.from_pretrained(
-                model_path, trust_remote_code=True, torch_dtype=torch.float16
-            )
-            .to(device)
-            .eval()
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True)
+        self.model = AutoModel.from_pretrained(model_path, trust_remote_code=True,
+                                               torch_dtype=torch.float16).to(device).eval()
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        if not texts:
-            return []
-        sanitized = [t.strip() if (isinstance(t, str) and t.strip())
-                     else "document" for t in texts]
-        encoded = self.tokenizer(
-            sanitized, padding=True, truncation=True, max_length=512, return_tensors="pt"
-        ).to(self.device)
-        if encoded["input_ids"].ndim < 2 or encoded["input_ids"].shape[1] == 0:
-            eos_id = self.tokenizer.eos_token_id or 0
-            encoded = {
-                "input_ids": torch.full((len(texts), 1), eos_id, dtype=torch.long, device=self.device),
-                "attention_mask": torch.ones((len(texts), 1), dtype=torch.long, device=self.device),
-            }
+        encoded = self.tokenizer(texts, padding=True, truncation=True,
+                                 max_length=512, return_tensors="pt").to(self.device)
         with torch.no_grad():
             out = self.model(**encoded)
         # last non-padding token
-        seq_len = torch.clamp(encoded["attention_mask"].sum(dim=1) - 1, min=0)
+        seq_len = encoded["attention_mask"].sum(dim=1) - 1
         vecs = out.last_hidden_state[torch.arange(len(texts)), seq_len]
         vecs = torch.nn.functional.normalize(vecs, dim=-1)
         return vecs.cpu().float().tolist()
@@ -164,7 +138,7 @@ class Qwen3Embeddings(Embeddings):
         # batch to avoid OOM
         results = []
         for i in range(0, len(texts), 16):
-            results.extend(self._embed(texts[i: i + 16]))
+            results.extend(self._embed(texts[i:i+16]))
         return results
 
     def embed_query(self, text: str) -> list[float]:
@@ -375,30 +349,19 @@ def build_index_docling(
 
 
 # ── RAG query ─────────────────────────────────────────────────────────────────
-def ask(
-    question: str,
-    site_key: str,
-    site_fulltext: dict[str, str],
-    vectorstore,
-    llm,
-    tokenizer=None,
-    top_k: int = 6,
-) -> str:
+def ask(question: str, site_key: str, site_fulltext: dict[str, str],
+        vectorstore, llm, top_k: int = 6) -> str:
     """Answer a question using context from a single site only."""
     # Retrieve chunks filtered to this site
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k * 3})
-    retrieved = [
-        d for d in retriever.invoke(question) if d.metadata.get("site_key") == site_key
-    ][:top_k]
+    retrieved = [d for d in retriever.invoke(question)
+                 if d.metadata.get("site_key") == site_key][:top_k]
 
     # If fewer than 3 chunks retrieved, widen the search
     if len(retrieved) < 3:
         retriever2 = vectorstore.as_retriever(search_kwargs={"k": top_k * 6})
-        retrieved = [
-            d
-            for d in retriever2.invoke(question)
-            if d.metadata.get("site_key") == site_key
-        ][:top_k]
+        retrieved = [d for d in retriever2.invoke(question)
+                     if d.metadata.get("site_key") == site_key][:top_k]
 
     # Ctrl+F fallback if semantic retrieval missed this site
     if not retrieved:
@@ -409,49 +372,25 @@ def ask(
             if m:
                 s = max(0, m.start() - KEYWORD_SNIPPET_CHARS)
                 e = min(len(text), m.end() + KEYWORD_SNIPPET_CHARS)
-                retrieved = [
-                    Document(
-                        page_content=f"SITE KEY: {site_key}\n\n{text[s:e]}",
-                        metadata={"site_key": site_key},
-                    )
-                ]
+                retrieved = [Document(page_content=f"SITE KEY: {site_key}\n\n{text[s:e]}",
+                                      metadata={"site_key": site_key})]
                 break
 
     if not retrieved:
         return "No relevant information found in the PDFs for this site."
 
     context = "\n\n".join(d.page_content for d in retrieved)
-    system_content = (
-        f"You are a document extraction system. Use ONLY the provided file: {site_key}. "
-        f"If the answer is not explicitly stated in the file, output exactly: NOT PRESENT. "
-        f"Output a single short answer only. Do NOT include explanations, reasoning, or extra text."
+    prompt = (
+        f"You are a document extraction system. "
+        f"Use ONLY the provided file: {site_key}. "
+        f"If the answer is not explicitly stated in the file, output exactly: NOT PRESENT."
+        f"Output a single short answer only. No explanations, reasoning, or extra text."
+        # f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
     )
-    user_content = f"Context:\n{context}\n\nQuestion: {question}"
-
-    if tokenizer is not None and getattr(tokenizer, "chat_template", None):
-        messages = [
-            {"role": "user", "content": f"{system_content}\n\n{user_content}"},
-        ]
-        try:
-            prompt = tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
-        except Exception:
-            prompt = f"{system_content}\n\n{user_content}\n\nAnswer:"
-    else:
-        prompt = f"{system_content}\n\n{user_content}\n\nAnswer:"
-
     raw = llm.invoke(prompt)
-
-    # Strip thinking/reasoning blocks (e.g., <think>...</think>)
-    raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL)
-
-    # Strip prompt echo prefixes if present
+    # Extract only the text after the last "Answer:" to strip prompt echo
     if "Answer:" in raw:
         raw = raw.split("Answer:")[-1]
-    if "Assistant:" in raw:
-        raw = raw.split("Assistant:")[-1]
-
     return raw.strip()
 
 
@@ -459,36 +398,18 @@ def ask(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--pdfs_dir",
-        default="/work/pi_larsonj_wit_edu/superfund/project/superfund/pdfs/pdfs",
-    )
+        "--pdfs_dir", default="/work/pi_larsonj_wit_edu/superfund/project/superfund/pdfs/pdfs")
     parser.add_argument(
-        "--out_dir",
-        default="/work/pi_larsonj_wit_edu/superfund/project/superfund/pdf_only_output",
-    )
-    parser.add_argument(
-        "--questions_file",
-        default="questions.txt",
-        help="Path to questions file (one per line, # = comment). Default: questions.txt",
-    )
-    parser.add_argument(
-        "--llm_models",
-        nargs="+",
-        default=list(LLM_MODELS.keys()),
-        help=f"Model keys to run: {list(LLM_MODELS.keys())}",
-    )
-    parser.add_argument(
-        "--embed_model",
-        default="e5-mistral-7b",
-        help=f"Embedding model key: {list(EMBEDDING_MODELS.keys())}",
-    )
-    parser.add_argument(
-        "--pdfs_filter",
-        nargs="+",
-        default=None,
-        help="Only index PDFs whose filename starts with one of these prefixes. "
-        "Example: --pdfs_filter Wisconsin_Tomah Wyoming",
-    )
+        "--out_dir",  default="/work/pi_larsonj_wit_edu/superfund/project/superfund/pdf_only_output")
+    parser.add_argument("--questions_file", default="questions.txt",
+                        help="Path to questions file (one per line, # = comment). Default: questions.txt")
+    parser.add_argument("--llm_models", nargs="+", default=list(LLM_MODELS.keys()),
+                        help=f"Model keys to run: {list(LLM_MODELS.keys())}")
+    parser.add_argument("--embed_model", default="e5-mistral-7b",
+                        help=f"Embedding model key: {list(EMBEDDING_MODELS.keys())}")
+    parser.add_argument("--pdfs_filter", nargs="+", default=None,
+                        help="Only index PDFs whose filename starts with one of these prefixes. "
+                             "Example: --pdfs_filter Wisconsin_Tomah Wyoming")
     parser.add_argument(
         "--use_docling",
         action="store_true",
@@ -505,9 +426,8 @@ def main():
     questions = DEFAULT_QUESTIONS
     if args.questions_file and os.path.exists(args.questions_file):
         with open(args.questions_file) as f:
-            questions = [
-                l.strip() for l in f if l.strip() and not l.strip().startswith("#")
-            ]
+            questions = [l.strip() for l in f if l.strip()
+                         and not l.strip().startswith("#")]
         print(f"Loaded {len(questions)} questions from {args.questions_file}")
 
     embed_path = _resolve_snapshot(EMBEDDING_MODELS[args.embed_model])
@@ -522,26 +442,12 @@ def main():
             args.pdfs_dir, embed_path, pdf_prefixes=args.pdfs_filter
         )
 
-    q_stem = (
-        os.path.splitext(os.path.basename(args.questions_file))[0]
-        if args.questions_file
-        else "rag_results"
-    )
+    q_stem = os.path.splitext(os.path.basename(args.questions_file))[
+        0] if args.questions_file else "rag_results"
     out_csv = os.path.join(args.out_dir, f"{q_stem}_results.csv")
     with open(out_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "llm_model",
-                "prompt_version",
-                "site_key",
-                "question_id",
-                "question",
-                "answer",
-                "evidence_quote",
-                "evidence_source",
-            ],
-        )
+        writer = csv.DictWriter(f, fieldnames=["llm_model", "prompt_version", "site_key", "question_id",
+                                               "question", "answer", "evidence_quote", "evidence_source"])
         # writer = csv.DictWriter(f, fieldnames=["llm_model", "site_key", "question", "answer"])
         writer.writeheader()
 
@@ -552,57 +458,23 @@ def main():
 
             model_path = _resolve_snapshot(LLM_MODELS[model_key])
             print(f"\nLoading LLM: {model_key}")
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_path, trust_remote_code=True)
-            eos_ids = [
-                tokenizer.eos_token_id] if tokenizer.eos_token_id is not None else []
-            # nl_ids = tokenizer.encode("\n", add_special_tokens=False)
-            # if nl_ids:
-            #     eos_ids.extend(nl_ids)
-
-            pipe = pipeline(
-                "text-generation",
-                model=model_path,
-                tokenizer=tokenizer,
-                max_new_tokens=1024,
-                max_length=None,
-                repetition_penalty=1.2,
-                eos_token_id=eos_ids,
-                do_sample=False,
-                return_full_text=False,
-                device_map="auto",
-                trust_remote_code=True,
-            )
+            pipe = pipeline("text-generation", model=model_path, max_new_tokens=2048,
+                            do_sample=False,
+                            device_map="auto", trust_remote_code=True)
             llm = HuggingFacePipeline(pipeline=pipe)
 
             # Run each question against each site independently
             for site_key in site_fulltext:
                 for question_id, question in enumerate(questions):
                     print(f"  [{site_key}] Q: {question[:60]}")
-                    answer = ask(
-                        question,
-                        site_key,
-                        site_fulltext,
-                        vectorstore,
-                        llm,
-                        tokenizer=tokenizer,
-                    )
+                    answer = ask(question, site_key,
+                                 site_fulltext, vectorstore, llm)
                     evidence_quote = ""
                     evidence_source = ""
                     # answer = ask(question, site_key, site_fulltext, vectorstore, llm)
                     print(f"  A: {answer[:100]}...")
-                    writer.writerow(
-                        {
-                            "llm_model": model_key,
-                            "prompt_version": prompt_version,
-                            "site_key": site_key,
-                            "question_id": question_id,
-                            "question": question,
-                            "answer": answer,
-                            "evidence_quote": evidence_quote,
-                            "evidence_source": evidence_source,
-                        }
-                    )
+                    writer.writerow({"llm_model": model_key, "prompt_version": prompt_version, "site_key": site_key, "question_id": question_id,
+                                     "question": question, "answer": answer, "evidence_quote": evidence_quote, "evidence_source": evidence_source})
                     # writer.writerow({"llm_model": model_key, "site_key": site_key,
                     #                "question": question, "answer": answer})
                     f.flush()
