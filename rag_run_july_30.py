@@ -141,7 +141,8 @@ class Qwen3Embeddings(Embeddings):
     def _embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        sanitized = [t.strip() if (isinstance(t, str) and t.strip()) else "document" for t in texts]
+        sanitized = [t.strip() if (isinstance(t, str) and t.strip())
+                     else "document" for t in texts]
         encoded = self.tokenizer(
             sanitized, padding=True, truncation=True, max_length=512, return_tensors="pt"
         ).to(self.device)
@@ -163,7 +164,7 @@ class Qwen3Embeddings(Embeddings):
         # batch to avoid OOM
         results = []
         for i in range(0, len(texts), 16):
-            results.extend(self._embed(texts[i : i + 16]))
+            results.extend(self._embed(texts[i: i + 16]))
         return results
 
     def embed_query(self, text: str) -> list[float]:
@@ -178,12 +179,14 @@ class DoclingDocumentParser:
         self.pipeline_options.do_table_structure = True
         self.pipeline_options.do_picture_description = False
 
-        self.accelerator_options = AcceleratorOptions(device=AcceleratorDevice.AUTO)
+        self.accelerator_options = AcceleratorOptions(
+            device=AcceleratorDevice.AUTO)
         self.pipeline_options.accelerator_options = self.accelerator_options
 
         self.converter = DocumentConverter(
             format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=self.pipeline_options)
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=self.pipeline_options)
             }
         )
 
@@ -360,7 +363,8 @@ def build_index_docling(
                 )
             )
 
-    print(f"  Indexed {len(site_chunks)} sites, {len(docs)} chunks (using Docling)")
+    print(
+        f"  Indexed {len(site_chunks)} sites, {len(docs)} chunks (using Docling)")
     # Use Qwen3Embeddings for qwen3-embed-* models, HuggingFaceEmbeddings for others
     if "qwen3-embed" in embed_model_path or "Qwen3" in embed_model_path:
         embeddings = Qwen3Embeddings(embed_model_path)
@@ -426,8 +430,7 @@ def ask(
 
     if tokenizer is not None and getattr(tokenizer, "chat_template", None):
         messages = [
-            {"role": "system", "content": system_content},
-            {"role": "user", "content": user_content},
+            {"role": "user", "content": f"{system_content}\n\n{user_content}"},
         ]
         try:
             prompt = tokenizer.apply_chat_template(
@@ -450,7 +453,6 @@ def ask(
         raw = raw.split("Assistant:")[-1]
 
     return raw.strip()
-
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -550,17 +552,20 @@ def main():
 
             model_path = _resolve_snapshot(LLM_MODELS[model_key])
             print(f"\nLoading LLM: {model_key}")
-            tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-            eos_ids = [tokenizer.eos_token_id] if tokenizer.eos_token_id is not None else []
-            nl_ids = tokenizer.encode("\n", add_special_tokens=False)
-            if nl_ids:
-                eos_ids.extend(nl_ids)
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_path, trust_remote_code=True)
+            eos_ids = [
+                tokenizer.eos_token_id] if tokenizer.eos_token_id is not None else []
+            # nl_ids = tokenizer.encode("\n", add_special_tokens=False)
+            # if nl_ids:
+            #     eos_ids.extend(nl_ids)
 
             pipe = pipeline(
                 "text-generation",
                 model=model_path,
                 tokenizer=tokenizer,
-                max_new_tokens=256,
+                max_new_tokens=1024,
+                max_length=None,
                 repetition_penalty=1.2,
                 eos_token_id=eos_ids,
                 do_sample=False,
