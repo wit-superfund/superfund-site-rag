@@ -93,6 +93,7 @@ LLM_MODELS = {
     "gemma3-27b-it": f"{HF_HUB}/gemma/hub/models--google--gemma-3-27b-it/snapshots",
     # Gemma4
     "gemma4-31B": f"{HF_HUB}/gemma/hub/models--google--gemma-4-31B/snapshots",
+    "gemma4-31B-it": f"{HF_HUB}/gemma/hub/models--google--gemma-4-31B-it/snapshots",
     "gemma4-12B-it": f"{HF_HUB}/gemma/hub/models--google--gemma-4-12B-it/snapshots",
     "gemma4-26b-a4b": f"{HF_HUB}/gemma/hub/models--google--gemma-4-26b-a4b/snapshots",
 }
@@ -120,16 +121,27 @@ class Qwen3Embeddings(Embeddings):
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=True)
-        self.model = AutoModel.from_pretrained(model_path, trust_remote_code=True,
+        self.model = AutoModel.from_pretrained(model_path,
                                                torch_dtype=torch.float16).to(device).eval()
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        encoded = self.tokenizer(texts, padding=True, truncation=True,
-                                 max_length=512, return_tensors="pt").to(self.device)
+        if not texts:
+            return []
+        sanitized = [t.strip() if (isinstance(t, str) and t.strip())
+                     else "document" for t in texts]
+        encoded = self.tokenizer(
+            sanitized, padding=True, truncation=True, max_length=512, return_tensors="pt"
+        ).to(self.device)
+        if encoded["input_ids"].ndim < 2 or encoded["input_ids"].shape[1] == 0:
+            eos_id = self.tokenizer.eos_token_id or 0
+            encoded = {
+                "input_ids": torch.full((len(texts), 1), eos_id, dtype=torch.long, device=self.device),
+                "attention_mask": torch.ones((len(texts), 1), dtype=torch.long, device=self.device),
+            }
         with torch.no_grad():
             out = self.model(**encoded)
         # last non-padding token
-        seq_len = encoded["attention_mask"].sum(dim=1) - 1
+        seq_len = torch.clamp(encoded["attention_mask"].sum(dim=1) - 1, min=0)
         vecs = out.last_hidden_state[torch.arange(len(texts)), seq_len]
         vecs = torch.nn.functional.normalize(vecs, dim=-1)
         return vecs.cpu().float().tolist()
@@ -385,12 +397,12 @@ def ask(question: str, site_key: str, site_fulltext: dict[str, str],
         f"Use ONLY the provided file: {site_key}. "
         f"If the answer is not explicitly stated in the file, output exactly: NOT PRESENT."
         f"Output a single short answer only. No explanations, reasoning, or extra text."
-        # f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+        f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
     )
     raw = llm.invoke(prompt)
     # Extract only the text after the last "Answer:" to strip prompt echo
     if "Answer:" in raw:
-        raw = raw.split("Answer:")[-1]
+        raw = raw.split("Answer:")[1:]
     return raw.strip()
 
 
