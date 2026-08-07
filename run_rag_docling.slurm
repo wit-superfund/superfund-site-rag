@@ -21,8 +21,8 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 source "$WORK_DIR/.venv/bin/activate"
 
-MODEL="gemma3-27b-it"
-# MODEL="gemma4-26b-a4b"
+# MODEL="gemma3-27b-it"
+MODEL="gemma4-31B-it"
 DATE=$(date +%Y%m%d_%H%M)
 OUTPUT="output/output_${MODEL}_${DATE}"
 SCRIPT="/work/pi_larsonj_wit_edu/superfund/project/superfund/run_rag_07302026/rag_run_july_30.py"

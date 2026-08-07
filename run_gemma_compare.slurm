@@ -37,25 +37,12 @@ echo "---------------------------"
 echo "--- Testing: Docling On ---"
 echo "---------------------------"
 
-echo "Starting: $SCRIPT (DOCLING ON) using $GEM3"
-
-
 uv run $SCRIPT \
     --pdfs_filter Wisconsin_Tomah \
-    --llm_models $GEM3 \
+    --llm_models $GEM3 $GEM4 \
     --embed_model qwen3-embed-8b \
     --questions_file questions.txt \
-    --out_dir "${WORK_DIR}/${DATE}/${DOCLING_ON}/${GEM3}" \
-    --use_docling \
-
-echo "Starting: $SCRIPT (DOCLING ON) using $GEM4"
-
-uv run $SCRIPT \
-    --pdfs_filter Wisconsin_Tomah \
-    --llm_models $GEM4 \
-    --embed_model qwen3-embed-8b \
-    --questions_file questions.txt \
-    --out_dir "${WORK_DIR}/${DATE}/${DOCLING_ON}/${GEM4}" \
+    --out_dir "${WORK_DIR}/${DATE}/${DOCLING_ON}/" \
     --use_docling \
 
 # --------------------------------------------------------------------------------------------------------------------------------
@@ -64,23 +51,12 @@ echo "----------------------------"
 echo "--- Testing: Docling Off ---"
 echo "----------------------------"
 
-echo "Starting: $SCRIPT (DOCLING OFF) using $GEM3"
-
 uv run $SCRIPT \
     --pdfs_filter Wisconsin_Tomah \
-    --llm_models $GEM3 \
+    --llm_models $GEM3 $GEM4 \
     --embed_model qwen3-embed-8b \
     --questions_file questions.txt \
-    --out_dir "${WORK_DIR}/${DATE}/${DOCLING_OFF}/${GEM3}" \
-
-echo "Starting: $SCRIPT (DOCLING OFF) using $GEM4"
-
-uv run $SCRIPT \
-    --pdfs_filter Wisconsin_Tomah \
-    --llm_models $GEM4 \
-    --embed_model qwen3-embed-8b \
-    --questions_file questions.txt \
-    --out_dir "${WORK_DIR}/${DATE}/${DOCLING_OFF}/${GEM4}" \
+    --out_dir "${WORK_DIR}/${DATE}/${DOCLING_OFF}/" \
 
 # --------------------------------------------------------------------------------------------------------------------------------
 

@@ -55,7 +55,7 @@ from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFacePipeline
 from pypdf import PdfReader
-from transformers import AutoModel, AutoTokenizer, pipeline
+from transformers import AutoModel, AutoTokenizer, pipeline, BitsAndBytesConfig
 
 # ── Model registry ────────────────────────────────────────────────────────────
 HF_HUB = "/datasets/ai"
@@ -121,8 +121,13 @@ class Qwen3Embeddings(Embeddings):
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_path, trust_remote_code=True)
-        self.model = AutoModel.from_pretrained(model_path,
-                                               torch_dtype=torch.float16).to(device).eval()
+        self.model = AutoModel.from_pretrained(
+            model_path,
+            device_map="auto",
+            quantization_config=BitsAndBytesConfig(load_in_4bit=True),
+            torch_dtype=torch.float16,
+            trust_remote_code=True
+        ).eval()
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -362,7 +367,7 @@ def build_index_docling(
 
 # ── RAG query ─────────────────────────────────────────────────────────────────
 def ask(question: str, site_key: str, site_fulltext: dict[str, str],
-        vectorstore, llm, top_k: int = 6) -> str:
+        vectorstore, llm: HuggingFacePipeline, top_k: int = 6) -> str:
     """Answer a question using context from a single site only."""
     # Retrieve chunks filtered to this site
     retriever = vectorstore.as_retriever(search_kwargs={"k": top_k * 3})
@@ -392,17 +397,25 @@ def ask(question: str, site_key: str, site_fulltext: dict[str, str],
         return "No relevant information found in the PDFs for this site."
 
     context = "\n\n".join(d.page_content for d in retrieved)
-    prompt = (
-        f"You are a document extraction system. "
-        f"Use ONLY the provided file: {site_key}. "
-        f"If the answer is not explicitly stated in the file, output exactly: NOT PRESENT."
-        f"Output a single short answer only. No explanations, reasoning, or extra text."
-        f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": "You are a document extraction system. Use ONLY the provided context. If the answer is not explicitly stated, output: NOT PRESENT. Provide a single short answer without explanation or repetition."
+        },
+        {
+            "role": "user",
+            "content": f"Context:\n{context}\n\nQuestion: {question}"
+        }
+    ]
+
+    # Access the tokenizer from the underlying HuggingFacePipeline
+    tokenizer = llm.pipeline.tokenizer
+    prompt = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
     )
     raw = llm.invoke(prompt)
-    # Extract only the text after the last "Answer:" to strip prompt echo
-    if "Answer:" in raw:
-        raw = raw.split("Answer:")[1:]
     return raw.strip()
 
 
@@ -469,10 +482,12 @@ def main():
                 continue
 
             model_path = _resolve_snapshot(LLM_MODELS[model_key])
+
             print(f"\nLoading LLM: {model_key}")
             pipe = pipeline("text-generation", model=model_path, max_new_tokens=2048,
-                            do_sample=False,
-                            device_map="auto", trust_remote_code=True)
+                            do_sample=False, repetition_penalty=1.2,
+                            device_map="auto", trust_remote_code=True,
+                            model_kwargs={"quantization_config": BitsAndBytesConfig(load_in_4bit=True), "torch_dtype": torch.bfloat16})
             llm = HuggingFacePipeline(pipeline=pipe)
 
             # Run each question against each site independently
@@ -492,6 +507,7 @@ def main():
                     f.flush()
 
             del pipe, llm
+            torch.cuda.empty_cache()
 
     print(f"\nDone. Results saved to: {out_csv}")
 
