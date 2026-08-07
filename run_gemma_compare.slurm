@@ -37,7 +37,7 @@ echo "---------------------------"
 echo "--- Testing: Docling On ---"
 echo "---------------------------"
 
-uv run $SCRIPT \
+python -m $SCRIPT \
     --pdfs_filter Wisconsin_Tomah \
     --llm_models $GEM3 $GEM4 \
     --embed_model qwen3-embed-8b \
@@ -51,7 +51,7 @@ echo "----------------------------"
 echo "--- Testing: Docling Off ---"
 echo "----------------------------"
 
-uv run $SCRIPT \
+python -m $SCRIPT \
     --pdfs_filter Wisconsin_Tomah \
     --llm_models $GEM3 $GEM4 \
     --embed_model qwen3-embed-8b \

@@ -369,21 +369,15 @@ def build_index_docling(
 def ask(question: str, site_key: str, site_fulltext: dict[str, str],
         vectorstore, llm: HuggingFacePipeline, top_k: int = 6) -> str:
     """Answer a question using context from a single site only."""
-    # Retrieve chunks filtered to this site
-    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k * 3})
-    retrieved = [d for d in retriever.invoke(question)
-                 if d.metadata.get("site_key") == site_key][:top_k]
-
-    # If fewer than 3 chunks retrieved, widen the search
-    if len(retrieved) < 3:
-        retriever2 = vectorstore.as_retriever(search_kwargs={"k": top_k * 6})
-        retrieved = [d for d in retriever2.invoke(question)
-                     if d.metadata.get("site_key") == site_key][:top_k]
+    # Retrieve chunks filtered to this site via FAISS metadata filtering
+    retriever = vectorstore.as_retriever(search_kwargs={"k": top_k, "filter": {"site_key": site_key}})
+    retrieved = retriever.invoke(question)
 
     # Ctrl+F fallback if semantic retrieval missed this site
     if not retrieved:
         text = site_fulltext.get(site_key, "")
-        q_tokens = set(re.findall(r"[a-z0-9]+", question.lower()))
+        stop_words = {"what", "is", "the", "of", "this", "at", "are", "with", "site", "to", "in", "and", "a"}
+        q_tokens = set(re.findall(r"[a-z0-9]+", question.lower())) - stop_words
         for term in q_tokens:
             m = re.search(re.escape(term), text, re.IGNORECASE)
             if m:
