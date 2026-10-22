@@ -34,6 +34,16 @@ Store results under a unique `run_id` without overwriting earlier runs:
 
 The current cluster benchmark already records extraction, embedding, retrieval, generation, document/page/chunk counts, and model-loading time. The ablation launcher adds a per-site configuration manifest and GNU `time -v` output for wall time and maximum resident memory. Peak GPU memory and full candidate traces remain implementation items.
 
+The currently implemented cluster arms can be submitted independently:
+
+```bash
+sbatch --export=ALL,RUN_TAG=B0,MAX_PAGES=50,EMBED_MODEL=e5-mistral-7b run_five_site_ablation.slurm
+sbatch --export=ALL,RUN_TAG=I_pages,MAX_PAGES=0,EMBED_MODEL=e5-mistral-7b run_five_site_ablation.slurm
+sbatch --export=ALL,RUN_TAG=I_qwen_raw,MAX_PAGES=50,EMBED_MODEL=qwen3-embed-8b run_five_site_ablation.slurm
+```
+
+`I_qwen_raw` is deliberately labeled a calibration run because the current cluster wrapper does not yet apply Qwen3's retrieval instruction. Do not substitute it for `I_qwen` in the incremental ladder.
+
 ## Metrics
 
 Use retrieval metrics before judging generated prose:
