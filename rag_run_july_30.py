@@ -106,8 +106,9 @@ DEFAULT_QUESTIONS = [
 ]
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MAX_PAGES_PER_PDF = 50           # was 25 — extract more pages per PDF
-MAX_CHARS_PER_PDF = 80_000       # was 40K — capture more site content
+# None means every page and all extracted text. Controlled benchmark scripts may
+# still impose an explicit cap for smoke tests.
+MAX_PAGES_PER_PDF: int | None = None
 CHUNK_SIZE_CHARS = 2400         # was 1800 — larger chunks = less fragmentation
 CHUNK_OVERLAP_CHARS = 300          # was 250
 KEYWORD_SNIPPET_CHARS = 260
@@ -249,7 +250,7 @@ def _chunk(text: str, size: int, overlap: int) -> list[str]:
 # ── PDF extraction ────────────────────────────────────────────────────────────
 
 
-def extract_pdf_text(path: str, max_pages: int = MAX_PAGES_PER_PDF) -> tuple[bool, str]:
+def extract_pdf_text(path: str, max_pages: int | None = MAX_PAGES_PER_PDF) -> tuple[bool, str]:
     """Returns (ok, text)."""
     if not _looks_like_pdf(path):
         return False, ""
@@ -261,7 +262,8 @@ def extract_pdf_text(path: str, max_pages: int = MAX_PAGES_PER_PDF) -> tuple[boo
             except Exception:
                 return False, ""
         parts = []
-        for page in reader.pages[:max_pages]:
+        selected_pages = reader.pages if max_pages is None else reader.pages[:max_pages]
+        for page in selected_pages:
             try:
                 t = (page.extract_text() or "").strip()
             except Exception:
@@ -294,7 +296,7 @@ def build_index(
     site_fulltext: dict[str, str] = {}
 
     for sk, parts in site_texts.items():
-        merged = "\n\n".join(parts)[:MAX_CHARS_PER_PDF]
+        merged = "\n\n".join(parts)
         site_fulltext[sk] = merged
         for idx, chunk in enumerate(
             _chunk(merged, CHUNK_SIZE_CHARS, CHUNK_OVERLAP_CHARS)
@@ -341,7 +343,7 @@ def build_index_docling(
     docs: list[Document] = []
 
     for sk, chunks in site_chunks.items():
-        merged = "\n\n".join(chunks)[:MAX_CHARS_PER_PDF]
+        merged = "\n\n".join(chunks)
         site_fulltext[sk] = merged
         for idx, chunk_text in enumerate(chunks):
             cleaned = _clean(chunk_text)
