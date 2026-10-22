@@ -9,6 +9,7 @@ Research code for answering questions from EPA Superfund document archives with 
 - Compare dense retrieval (`e5-mistral-7b-instruct` and `Qwen3-Embedding-8B`) with a lexical BM25 baseline and a fused BM25+dense run.
 - Require answers to cite retrieved evidence and return `NOT PRESENT` when the archive does not support an answer.
 - Use the five-site mining pilot in `benchmarks/five_site_benchmark.tsv` and the five reviewed questions in `benchmarks/questions_mining.txt` before expanding the evaluation set.
+- Preserve baseline, one-factor-at-a-time, and incremental runs using the versioned [`benchmarks/ablation_matrix.tsv`](benchmarks/ablation_matrix.tsv) and [`benchmarks/ABLATION_PROTOCOL.md`](benchmarks/ABLATION_PROTOCOL.md).
 
 The next repository cleanup will selectively move the active cluster modules into this repository. PDFs, model weights, indexes, virtual environments, logs, and generated answers should remain outside Git.
 

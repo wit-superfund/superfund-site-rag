@@ -1,0 +1,14 @@
+run_id	series	change_from_baseline	max_pages	embed_model	query_instruction	retrieval	fusion	reranker	verifier	status
+B0	baseline	legacy dense baseline	50	e5-mistral-7b	current	dense	none	MiniLM	current	ready
+I_pages	individual	all pages only	0	e5-mistral-7b	current	dense	none	MiniLM	current	ready
+I_qwen_raw	calibration	Qwen3 without task instruction	50	qwen3-embed-8b	none	dense	none	MiniLM	current	ready
+I_qwen	individual	instructed Qwen3 only	50	qwen3-embed-8b	superfund retrieval task	dense	none	MiniLM	current	planned
+I_bm25	component	BM25 only	50	none	none	BM25	none	none	current	planned
+I_hybrid	individual	BM25 plus E5 RRF	50	e5-mistral-7b	current	dense+BM25	RRF	MiniLM	current	planned
+I_verify	individual	fail-closed verifier only	50	e5-mistral-7b	current	dense	none	MiniLM	strict	planned
+I_rerank	individual	Qwen3 reranker only	50	e5-mistral-7b	current	dense	none	Qwen3-0.6B	current	planned
+L1	incremental	baseline plus all pages	0	e5-mistral-7b	current	dense	none	MiniLM	current	alias:I_pages
+L2	incremental	L1 plus instructed Qwen3	0	qwen3-embed-8b	superfund retrieval task	dense	none	MiniLM	current	planned
+L3	incremental	L2 plus BM25 RRF	0	qwen3-embed-8b	superfund retrieval task	dense+BM25	RRF	MiniLM	current	planned
+L4	incremental	L3 plus strict verifier	0	qwen3-embed-8b	superfund retrieval task	dense+BM25	RRF	MiniLM	strict	planned
+L5	incremental	L4 plus Qwen3 reranker	0	qwen3-embed-8b	superfund retrieval task	dense+BM25	RRF	Qwen3-0.6B	strict	planned
