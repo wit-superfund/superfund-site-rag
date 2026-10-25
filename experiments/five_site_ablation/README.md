@@ -64,6 +64,8 @@ cannot silently redirect a Silver Bow smoke to another site.
 The completed October 25 Silver Bow smoke audit, including final Slurm job IDs,
 cache timings, and caveats, is recorded in
 [`SMOKE_RESULTS_2026-10-25.md`](SMOKE_RESULTS_2026-10-25.md).
+The resulting five-site submission graph and full-run job IDs are recorded in
+[`FULL_RUN_2026-10-25.md`](FULL_RUN_2026-10-25.md).
 
 One-question, three-page Silver Bow smoke for an executable arm:
 
