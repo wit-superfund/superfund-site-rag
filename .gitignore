@@ -37,3 +37,19 @@ AGENTS.md
 
 # Output
 output/*
+
+# RAG caches and generated experiment artifacts
+cache/
+indexes/
+*.faiss
+*.index
+*.pkl
+answers_*.csv
+timing_*.csv
+resources/
+manifests/
+
+# Local source corpora and model snapshots
+five_sites/
+condensed/
+models/

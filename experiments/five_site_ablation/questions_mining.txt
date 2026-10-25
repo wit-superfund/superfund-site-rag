@@ -1,0 +1,6 @@
+# Mining-site RAG test questions (2026-10-15). One question per line.
+When did mining begin at the site, and what was mined?
+Which companies are identified as responsible, and how were they connected to the mining?
+What harm to human health is documented, and who was affected?
+What concerns did the public raise about the cleanup plan, and how did EPA respond?
+How did the cleanup plan change over time, and why?
