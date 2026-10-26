@@ -8,8 +8,8 @@ numbers line up with the August benchmarks:
                      NOT PRESENT, repetition, retrieved sources
 
 Sources:
-  pdf        original PDFs (five_sites/<folder>), text extracted with pypdf at index time,
-             exactly as the current RAG does
+  pdf        original PDFs (five_sites/<folder>), text extracted page-by-page with pypdf and
+             an explicit PyMuPDF fallback when pypdf cannot open a document or read a page
   condensed  the condenser's cleaned text (<condensed_root>/<EPA ID>/<condenser>/clean/text/*.txt):
              duplicates dropped (Jaccard >= 0.98, lengths within 5%), headers/footers kept since the
              10-16-26 re-clean (stripped before), tables kept; original page numbers kept
@@ -71,6 +71,7 @@ from embedding_modes import (  # noqa: E402
     QueryAwareEmbeddings,
     build_embedding_profile,
     manifest_dict as embedding_manifest_dict,
+    validate_embedding_model_assets,
 )
 from retrieval_modes import (  # noqa: E402
     RETRIEVAL_MODES,
@@ -79,6 +80,7 @@ from retrieval_modes import (  # noqa: E402
     retrieve_question,
 )
 from question_io import load_questions  # noqa: E402
+from pdf_extract import extract_pdf_pages  # noqa: E402
 from rag_cache import (  # noqa: E402
     CACHE_FORMAT_VERSION,
     atomic_write_csv,
@@ -91,8 +93,10 @@ from rag_cache import (  # noqa: E402
 
 PAGE_MARK = re.compile(r"^<!-- Page (\d+) -->\s*$", re.M)
 EXTRACTION_SCHEMA = "superfund-extraction-v1"
+PDF_EXTRACTION_SCHEMA = "superfund-pdf-extraction-v2"
 CHUNK_SCHEMA = "superfund-char-window-v1"
 INDEX_SCHEMA = "superfund-faiss-v1"
+PDF_EXTRACTION_POLICY = "pypdf-with-pymupdf-page-fallback-v1"
 
 
 def event_field(event, name, default=""):
@@ -108,25 +112,54 @@ def package_version(name):
 
 # ── Text sources: both return [(doc_id, [(page_no, text), ...]), ...] ─────────
 def pages_from_pdfs(pdf_dir, max_pages):
-    from pypdf import PdfReader
     docs = []
+    diagnostics = {
+        "policy": PDF_EXTRACTION_POLICY,
+        "fallback_documents": 0,
+        "fallback_document_ids": [],
+        "whole_document_fallbacks": 0,
+        "fallback_page_count": 0,
+        "failed_documents": 0,
+        "failed_document_ids": [],
+        "failed_page_count": 0,
+        "empty_page_count": 0,
+        "empty_document_count": 0,
+        "fallback_reasons": [],
+    }
     for f in sorted(os.listdir(pdf_dir)):
         if not f.lower().endswith(".pdf"):
             continue
-        pages = []
-        try:
-            reader = PdfReader(os.path.join(pdf_dir, f))
-            for i, page in enumerate(reader.pages):
-                if max_pages and i >= max_pages:
-                    break
-                try:
-                    pages.append((i + 1, (page.extract_text() or "").strip()))
-                except Exception:
-                    pages.append((i + 1, ""))
-        except Exception as e:
-            print(f"    pypdf failed on {f}: {e}")
+        result = extract_pdf_pages(os.path.join(pdf_dir, f), max_pages=max_pages)
+        pages = result.pages
+        doc_id = os.path.splitext(f)[0]
+        if result.fallback_used:
+            diagnostics["fallback_documents"] += 1
+            diagnostics["fallback_document_ids"].append(doc_id)
+            diagnostics["whole_document_fallbacks"] += int(result.whole_document_fallback)
+            diagnostics["fallback_page_count"] += result.fallback_page_count
+            diagnostics["fallback_reasons"].append({
+                "doc_id": doc_id,
+                "primary_error": result.primary_error,
+                "fallback_error": result.fallback_error,
+            })
+            print(
+                f"    PDF fallback on {f}: pages={result.fallback_page_count}, "
+                f"whole_document={result.whole_document_fallback}, "
+                f"primary_error={result.primary_error!r}",
+                flush=True,
+            )
+        if result.failed_document:
+            diagnostics["failed_documents"] += 1
+            diagnostics["failed_document_ids"].append(doc_id)
+            print(
+                f"    PDF extraction failed on {f}: {result.fallback_error or result.primary_error}",
+                flush=True,
+            )
+        diagnostics["failed_page_count"] += result.failed_page_count
+        diagnostics["empty_page_count"] += sum(not text for _, text in pages)
+        diagnostics["empty_document_count"] += int(not any(text for _, text in pages))
         docs.append((os.path.splitext(f)[0], pages))
-    return docs
+    return docs, diagnostics
 
 
 def pages_from_condensed(text_dir, max_pages):
@@ -217,11 +250,13 @@ def run_source(
     embed_load_sec,
     questions,
     settings,
+    embedding_model_path,
+    embedding_asset_manifest,
 ):
     tag = f"{args.site}_{source}"
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
-    variant = args.condenser if source == "condensed" else "pypdf"
+    variant = args.condenser if source == "condensed" else PDF_EXTRACTION_POLICY
     source_dir = (args.pdf_dir if source == "pdf" else
                   os.path.join(args.condensed_root, args.site, args.condenser, "clean", "text"))
     suffix = ".pdf" if source == "pdf" else ".txt"
@@ -231,26 +266,57 @@ def run_source(
     content_sha256, fingerprint_info = fingerprint_source(
         source_dir, suffix, args.cache_dir, force_rehash=args.force_content_rehash)
     extraction_config = {
-        "schema": EXTRACTION_SCHEMA,
+        "schema": PDF_EXTRACTION_SCHEMA if source == "pdf" else EXTRACTION_SCHEMA,
         "cache_format": CACHE_FORMAT_VERSION,
         "site": args.site,
         "source": source,
         "variant": variant,
         "content_sha256": content_sha256,
         "max_pages": args.max_pages or None,
-        "parser_version": package_version("pypdf") if source == "pdf" else "page-mark-v1",
+        "parser_version": (
+            {
+                "pypdf": package_version("pypdf"),
+                "pymupdf": package_version("PyMuPDF"),
+            }
+            if source == "pdf"
+            else "page-mark-v1"
+        ),
     }
 
     def build_extraction_payload():
         if source == "pdf":
-            built_docs = pages_from_pdfs(args.pdf_dir, args.max_pages)
+            built_docs, built_diagnostics = pages_from_pdfs(args.pdf_dir, args.max_pages)
+            return {
+                "documents": docs_to_payload(built_docs),
+                "diagnostics": built_diagnostics,
+            }
         else:
             built_docs = pages_from_condensed(source_dir, args.max_pages)
         return docs_to_payload(built_docs)
 
     docs_payload, extraction_event = get_or_build_json_gzip(
         args.cache_dir, "extraction", extraction_config, build_extraction_payload)
-    docs = docs_from_payload(docs_payload)
+    if isinstance(docs_payload, dict):
+        extraction_diagnostics = docs_payload.get("diagnostics", {})
+        documents_payload = docs_payload["documents"]
+    else:
+        # Condensed-text v1 artifacts predate extraction diagnostics and remain
+        # safe to reuse because their extraction configuration is unchanged.
+        extraction_diagnostics = {
+            "policy": "page-mark-v1",
+            "fallback_documents": 0,
+            "fallback_document_ids": [],
+            "whole_document_fallbacks": 0,
+            "fallback_page_count": 0,
+            "failed_documents": 0,
+            "failed_document_ids": [],
+            "failed_page_count": 0,
+            "empty_page_count": 0,
+            "empty_document_count": 0,
+            "fallback_reasons": [],
+        }
+        documents_payload = docs_payload
+    docs = docs_from_payload(documents_payload)
     n_pages = sum(len(pages) for _, pages in docs)
     n_chars = sum(len(text) for _, pages in docs for _, text in pages)
 
@@ -300,7 +366,8 @@ def run_source(
             "source": source,
             "chunk_key": chunk_event.key,
             "embed_model": args.embed_model,
-            "embed_model_path": os.path.realpath(EMBEDDING_MODELS[args.embed_model]),
+            "embed_model_path": embedding_model_path,
+            "embedding_asset_manifest": embedding_asset_manifest,
             **embedding_manifest_dict(embedding_profile),
             "normalize_embeddings": True,
             "encode_batch_size": 8,
@@ -416,11 +483,15 @@ def run_source(
             answer_disposition = "flagged"
             released_answer = text
         rows.append({
-            "source": source, "condenser": args.condenser if source == "condensed" else "pypdf",
+            "source": source, "condenser": variant,
             "embed_model": args.embed_model, "llm_model": args.llm_model, "site_key": args.site,
             "embedding_model_path": (
-                os.path.realpath(EMBEDDING_MODELS[args.embed_model]) if settings.needs_dense else ""
+                embedding_model_path if settings.needs_dense else ""
             ),
+            "embedding_asset_bundle_sha256": embedding_asset_manifest.get(
+                "model_asset_bundle_sha256", ""
+            ),
+            "embedding_pooling_mode": embedding_asset_manifest.get("pooling_mode", ""),
             "site_name": args.site_name, "prompt": args.prompt,
             "question_id": question_id, "question_order": question_order, "question": question,
             "raw_response": getattr(answer, "raw_response", ""), "answer": text,
@@ -428,6 +499,10 @@ def run_source(
             "answer_disposition": answer_disposition,
             "run_fingerprint": run_fingerprint,
             "extraction_cache_key": extraction_event.key, "chunk_cache_key": chunk_event.key,
+            "extraction_policy": extraction_diagnostics.get("policy", ""),
+            "extraction_fallback_documents": extraction_diagnostics.get("fallback_documents", 0),
+            "extraction_failed_documents": extraction_diagnostics.get("failed_documents", 0),
+            "extraction_failed_page_count": extraction_diagnostics.get("failed_page_count", 0),
             "dense_index_cache_key": event_field(dense_event, "key"),
             "bm25_index_cache_key": event_field(bm25_event, "key"),
             "query_instruction_mode": embedding_profile.query_mode,
@@ -470,8 +545,12 @@ def run_source(
     timing = {
         "source": source, "condenser": rows[0]["condenser"], "embed_model": args.embed_model,
         "embedding_model_path": (
-            os.path.realpath(EMBEDDING_MODELS[args.embed_model]) if settings.needs_dense else ""
+            embedding_model_path if settings.needs_dense else ""
         ),
+        "embedding_asset_bundle_sha256": embedding_asset_manifest.get(
+            "model_asset_bundle_sha256", ""
+        ),
+        "embedding_pooling_mode": embedding_asset_manifest.get("pooling_mode", ""),
         "site_key": args.site, "num_docs": len(docs), "num_pages": n_pages, "num_chars": n_chars,
         "num_chunks": len(chunks),
         "content_sha256": content_sha256,
@@ -480,6 +559,25 @@ def run_source(
         "extraction_cache_hit": extraction_event.hit, "extraction_cache_key": extraction_event.key,
         "extract_sec": f"{extraction_event.elapsed_sec:.2f}",
         "extract_build_sec": f"{extraction_event.build_sec:.2f}",
+        "extraction_policy": extraction_diagnostics.get("policy", ""),
+        "extraction_fallback_documents": extraction_diagnostics.get("fallback_documents", 0),
+        "extraction_fallback_document_ids": "; ".join(
+            extraction_diagnostics.get("fallback_document_ids", [])
+        ),
+        "extraction_whole_document_fallbacks": extraction_diagnostics.get(
+            "whole_document_fallbacks", 0
+        ),
+        "extraction_fallback_page_count": extraction_diagnostics.get("fallback_page_count", 0),
+        "extraction_failed_documents": extraction_diagnostics.get("failed_documents", 0),
+        "extraction_failed_document_ids": "; ".join(
+            extraction_diagnostics.get("failed_document_ids", [])
+        ),
+        "extraction_failed_page_count": extraction_diagnostics.get("failed_page_count", 0),
+        "extraction_empty_page_count": extraction_diagnostics.get("empty_page_count", 0),
+        "extraction_empty_document_count": extraction_diagnostics.get("empty_document_count", 0),
+        "extraction_fallback_reasons_json": json.dumps(
+            extraction_diagnostics.get("fallback_reasons", []), sort_keys=True
+        ),
         "chunk_cache_hit": chunk_event.hit, "chunk_cache_key": chunk_event.key,
         "chunk_sec": f"{chunk_event.elapsed_sec:.2f}", "chunk_build_sec": f"{chunk_event.build_sec:.2f}",
         "dense_index_cache_hit": event_field(dense_event, "hit"),
@@ -528,6 +626,10 @@ def main():
     ap.add_argument("--condenser", default="pymupdf_smart")
     ap.add_argument("--questions_file", required=True)
     ap.add_argument("--embed_model", default="e5-mistral-7b", choices=["none", *EMBEDDING_MODELS])
+    ap.add_argument(
+        "--embed_model_path",
+        help="optional frozen checkpoint/overlay path; Qwen3 must include its official embedding assets",
+    )
     ap.add_argument(
         "--query_instruction_mode",
         choices=QUERY_MODES,
@@ -624,10 +726,21 @@ def main():
 
     embeddings = None
     embed_load_sec = 0.0
+    embedding_model_path = ""
+    embedding_asset_manifest = {}
     if settings.needs_dense:
+        embedding_model_path = os.path.realpath(
+            args.embed_model_path or EMBEDDING_MODELS[args.embed_model]
+        )
+        try:
+            embedding_asset_manifest = validate_embedding_model_assets(
+                args.embed_model, embedding_model_path
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            ap.error(str(exc))
         t0 = time.time()
         base_embeddings = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODELS[args.embed_model],
+            model_name=embedding_model_path,
             model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"},
             encode_kwargs={"batch_size": 8, "normalize_embeddings": True},
         )
@@ -656,6 +769,8 @@ def main():
             embed_load_sec,
             questions,
             settings,
+            embedding_model_path,
+            embedding_asset_manifest,
         )
     print("done")
 

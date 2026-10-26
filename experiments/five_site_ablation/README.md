@@ -8,6 +8,15 @@ active Unity pipeline:
 - dense, BM25-only, or deterministic dense+BM25/RRF retrieval; and
 - legacy, lenient, or strict citation-contract verification.
 
+Qwen3 runs fail closed unless the checkpoint contains the official tokenizer,
+Sentence Transformers module graph, last-token pooler, and normalization
+module. Unity's shared weight snapshot omits those small interface files; using
+it directly produced the same vector for every query. The checked-in
+`prepare_qwen3_embedding_overlay.py` creates a version-pinned complete view by
+symlinking the shared 8B weights and verifying separately downloaded interface
+assets from revision `1d8ad4ca9b3dd8059ad90a75d4983776a23d44af`. The runner records the
+validated interface-asset bundle hash in every Qwen index and result.
+
 `compare_rag.py` defaults to **all pages** (`--max_pages 0`). The historical
 50-page behavior is retained only when an arm explicitly selects 50. BM25-only
 requires `--embed_model none` and therefore skips loading embeddings and
@@ -56,7 +65,7 @@ PYTHONPATH=. python -m unittest discover -s tests -v
 bash -n run_ablation_arm.slurm
 ```
 
-The repository form includes 71 pure-Python contract/regression tests. They
+The repository form includes 79 pure-Python contract/regression tests. They
 include stable question-ID parsing, and one of them binds the smoke default to
 EPA ID `MTD980502777` so a site-file reorder
 cannot silently redirect a Silver Bow smoke to another site.
@@ -68,6 +77,29 @@ The resulting five-site submission graph and full-run job IDs are recorded in
 [`FULL_RUN_2026-10-25.md`](FULL_RUN_2026-10-25.md).
 The completed output-integrity and preliminary behavior audit is recorded in
 [`RESULTS_AUDIT_2026-10-25.md`](RESULTS_AUDIT_2026-10-25.md).
+The Qwen/PDF defect investigation, corrected pipeline, direct probe evidence,
+and correction-run gates are recorded in
+[`CORRECTION_RUN_2026-10-25.md`](CORRECTION_RUN_2026-10-25.md).
+
+## Qwen3 checkpoint preparation
+
+Download these six non-weight files from the exact frozen
+[`Qwen/Qwen3-Embedding-8B`](https://huggingface.co/Qwen/Qwen3-Embedding-8B/tree/1d8ad4ca9b3dd8059ad90a75d4983776a23d44af)
+revision into one directory: `modules.json`,
+`config_sentence_transformers.json`, `1_Pooling/config.json` (rename this one
+to `pooling_config.json` in the asset directory), `tokenizer.json`,
+`merges.txt`, and `vocab.json`. Then run:
+
+```bash
+python prepare_qwen3_embedding_overlay.py \
+  --source /datasets/ai/qwen3/hub/models--Qwen--Qwen3-Embedding-8B/snapshots/1d8ad4ca9b3dd8059ad90a75d4983776a23d44af \
+  --destination /work/pi_larsonj_wit_edu/superfund/project/superfund/models/qwen3-embedding-8b-1d8ad4ca-complete \
+  --assets /path/to/downloaded/assets
+```
+
+The builder verifies all six SHA-256 hashes and refuses to replace conflicting
+files. `compare_rag.py` independently checks the module graph, tokenizer,
+last-token pooling configuration, and records the resulting bundle hash.
 
 One-question, three-page Silver Bow smoke for an executable arm:
 
@@ -83,6 +115,13 @@ are inspected. Example:
 sbatch --array=0-4 --export=ALL,ARM=I_bm25 run_ablation_arm.slurm
 ```
 
-The current Unity staging location is
+The completed first-pass matrix remains staged at
 `/work/pi_larsonj_wit_edu/superfund/project/superfund/staging/rag_matrix_v2_20261025`.
+The corrected PDF-fallback pipeline is staged at
+`/work/pi_larsonj_wit_edu/superfund/project/superfund/staging/rag_matrix_v3_20261025`
+and writes to `output/rag_matrix_v3_pdf_fallback`. It intentionally reuses the
+content-addressed v2 cache: unchanged condensed artifacts remain valid, while
+the new PDF extraction schema forces PDF extraction, chunks, and indexes to be
+rebuilt. PDF timing rows report fallback, empty-page, and extraction-failure
+counts and document IDs.
 The active `rag_condensed_compare` directory is intentionally untouched.

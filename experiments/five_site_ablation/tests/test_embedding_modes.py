@@ -1,6 +1,8 @@
 import asyncio
+import json
 import pathlib
 import sys
+import tempfile
 import unittest
 
 
@@ -13,6 +15,7 @@ from embedding_modes import (  # noqa: E402
     SUPERFUND_QUERY_INSTRUCTION,
     build_embedding_profile,
     qwen3_query_text,
+    validate_embedding_model_assets,
 )
 
 
@@ -111,6 +114,35 @@ class EmbeddingProfileTests(unittest.TestCase):
             spy.query_calls,
             ["Instruct: " + SUPERFUND_QUERY_INSTRUCTION + "\nQuery:What was remediated?"],
         )
+
+    def test_incomplete_qwen_snapshot_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pathlib.Path(directory, "config.json").write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                validate_embedding_model_assets("qwen3-embed-8b", directory)
+
+    def test_complete_qwen_embedding_interface_is_recorded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            values = {
+                "config.json": {"model_type": "qwen3", "hidden_size": 4096},
+                "config_sentence_transformers.json": {"similarity_fn_name": "cosine"},
+                "modules.json": [
+                    {"type": "sentence_transformers.models.Transformer"},
+                    {"type": "sentence_transformers.models.Pooling"},
+                    {"type": "sentence_transformers.models.Normalize"},
+                ],
+                "tokenizer.json": {"model": {"type": "BPE"}},
+                "tokenizer_config.json": {"tokenizer_class": "Qwen2Tokenizer"},
+                "1_Pooling/config.json": {"pooling_mode_lasttoken": True},
+            }
+            for name, value in values.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(value), encoding="utf-8")
+            manifest = validate_embedding_model_assets("qwen3-embed-8b", directory)
+            self.assertEqual(manifest["pooling_mode"], "lasttoken")
+            self.assertEqual(len(manifest["model_asset_bundle_sha256"]), 64)
 
 
 class StagedIntegrationTests(unittest.TestCase):
