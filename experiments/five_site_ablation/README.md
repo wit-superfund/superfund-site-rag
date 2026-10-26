@@ -66,6 +66,8 @@ cache timings, and caveats, is recorded in
 [`SMOKE_RESULTS_2026-10-25.md`](SMOKE_RESULTS_2026-10-25.md).
 The resulting five-site submission graph and full-run job IDs are recorded in
 [`FULL_RUN_2026-10-25.md`](FULL_RUN_2026-10-25.md).
+The completed output-integrity and preliminary behavior audit is recorded in
+[`RESULTS_AUDIT_2026-10-25.md`](RESULTS_AUDIT_2026-10-25.md).
 
 One-question, three-page Silver Bow smoke for an executable arm:
 
