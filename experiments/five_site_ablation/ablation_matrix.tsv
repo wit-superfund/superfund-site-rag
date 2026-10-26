@@ -1,0 +1,14 @@
+arm	series	status	max_pages	embed_model	query_instruction_mode	retrieval_mode	verifier_mode	candidate_k	top_k	rrf_k	reuse_from	description
+B0	baseline	ready	50	e5-mistral-7b	none	dense	legacy	30	6	60	-	Historical E5 baseline with 50-page cap
+I_pages	individual	ready	0	e5-mistral-7b	none	dense	legacy	30	6	60	-	All pages only
+I_qwen_raw	calibration	ready	50	qwen3-embed-8b	none	dense	legacy	30	6	60	-	Qwen3 without query instruction
+I_qwen	individual	ready	50	qwen3-embed-8b	superfund	dense	legacy	30	6	60	-	Correctly instructed Qwen3 only
+I_bm25	component	ready	50	none	none	bm25	legacy	30	6	60	-	BM25-only lexical baseline
+I_hybrid	individual	ready	50	e5-mistral-7b	none	hybrid	legacy	30	6	60	-	E5 plus BM25 with reciprocal-rank fusion
+I_verify	individual	ready	50	e5-mistral-7b	none	dense	strict	30	6	60	-	Fail-closed citation contract only
+I_rerank	individual	blocked	50	e5-mistral-7b	none	dense	legacy	18	6	60	-	Requires exact Qwen3-Reranker-0.6B snapshot
+L1	incremental	reuse	0	e5-mistral-7b	none	dense	legacy	30	6	60	I_pages	Baseline plus all pages; reuse I_pages
+L2	incremental	ready	0	qwen3-embed-8b	superfund	dense	legacy	30	6	60	-	L1 plus instructed Qwen3
+L3	incremental	ready	0	qwen3-embed-8b	superfund	hybrid	legacy	30	6	60	-	L2 plus BM25/RRF
+L4	incremental	ready	0	qwen3-embed-8b	superfund	hybrid	strict	30	6	60	-	L3 plus fail-closed citation contract
+L5	incremental	blocked	0	qwen3-embed-8b	superfund	hybrid	strict	18	6	60	-	L4 plus Qwen3 reranker; exact snapshot unavailable

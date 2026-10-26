@@ -1,0 +1,29 @@
+name: Ablation contract tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pure-python-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run cache, retrieval, embedding, and verifier tests
+        working-directory: experiments/five_site_ablation
+        run: PYTHONPATH=. python -m unittest discover -s tests -v
+      - name: Validate Slurm runner syntax
+        run: bash -n experiments/five_site_ablation/run_ablation_arm.slurm
+      - name: Validate the 13-arm matrix shape
+        run: |
+          awk -F '\t' '
+            NR > 1 && NF != 13 { print "bad field count on line", NR; bad=1 }
+            END { if (NR != 14) { print "expected 13 arms"; bad=1 }; exit bad }
+          ' experiments/five_site_ablation/ablation_matrix.tsv
