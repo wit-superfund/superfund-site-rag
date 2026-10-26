@@ -52,10 +52,43 @@ Raw JSONL probe logs are archived locally under
 
 | Job | Purpose | Status |
 |---|---|---|
-| `66132606_1` | Silver Bow, PDF, `I_pages` fallback smoke | queued |
-| `66132687_1` | Silver Bow, PDF, corrected `I_qwen` smoke | queued |
-| `66132688_1` | Silver Bow, PDF, corrected `L4` hybrid+strict smoke | queued |
+| `66132723_1` | Silver Bow, PDF, `I_pages` fallback smoke | completed `0:0` |
+| `66132724_1` | Silver Bow, PDF, corrected `I_qwen` smoke | completed `0:0` |
+| `66132725_1` | Silver Bow, PDF, corrected `L4` hybrid+strict smoke | completed `0:0` |
 
-The ten-arm correction matrix should be submitted only after these three
-smokes produce complete manifests, answer/timing rows, expected extraction
-diagnostics, and no traceback.
+The smoke jobs used the installed 12B generator and a 48–143 GB GPU constraint
+because the H200 node was fully allocated. This changes only smoke resource
+usage. Each produced one complete manifest, answer row, timing row, and GNU
+resource file with no traceback. The production matrix retains the frozen 31B
+generator and 102/143 GB constraint.
+
+The shared smoke artifact contains 732 documents, 1,981 sampled pages,
+3,258,682 characters, and 1,819 chunks. One process built extraction/chunks and
+the other two hit the same keys. Diagnostics report two whole-document
+fallbacks, six fallback pages, zero failed documents, and zero parser-failed
+pages. The Qwen dense index was built once and reused by the second Qwen arm;
+the integrated arm also built its BM25 index.
+
+## Correction-matrix submission
+
+All arrays cover site indexes `0-4`, both PDF and condensed sources, and the
+five canonical question IDs. `afterok` applies to the whole upstream array, so
+a failed site prevents dependent arms from consuming GPU time.
+
+| Arm | Slurm array | Dependency |
+|---|---:|---|
+| `B0` | `66132825` | none |
+| `I_pages` | `66132826` | `B0` |
+| `I_qwen_raw` | `66132827` | `B0` |
+| `I_qwen` | `66132828` | `B0` |
+| `I_bm25` | `66132829` | `B0` |
+| `I_hybrid` | `66132830` | `B0` and `I_bm25` |
+| `I_verify` | `66132831` | `B0` |
+| `L2` | `66132832` | `I_pages` |
+| `L3` | `66132833` | `L2` |
+| `L4` | `66132834` | `L3` |
+
+At submission, `B0` was pending for an eligible H200 GPU and every downstream
+array had the expected unfulfilled dependency. `L1` remains an explicit reuse
+of `I_pages`; `I_rerank` and `L5` remain blocked because the exact reranker
+snapshot is unavailable.
